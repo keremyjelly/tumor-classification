@@ -1,7 +1,16 @@
-kagglehub
-tensorflow>=2.16
-matplotlib
-seaborn
-opencv-python
+# Dashboard / deployment dependencies.
+# Streamlit Community Cloud installs THIS file, so it is deliberately minimal —
+# notebook-only packages live in requirements-notebook.txt.
+#
+# Versions are pinned, not floated, because the exported .keras files carry the
+# serialization format of the Keras that wrote them (3.14.1). A newer or older Keras
+# fails to deserialize them at load time, which on Streamlit Cloud surfaces as a blank
+# dashboard rather than an obvious error.
+tensorflow-cpu==2.16.2   # CPU build: full `tensorflow` bundles CUDA libs and blows the memory/disk budget
+keras==3.14.1            # must match the Keras that exported models/*.keras
+numpy==1.26.4            # TF 2.16 requires numpy<2
+scikit-learn==1.9.0      # must match the version that pickled logistic_regression.joblib
+joblib
 pandas
-numpy
+pillow
+streamlit

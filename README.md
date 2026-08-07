@@ -20,8 +20,9 @@ All four models are trained and exported to `models/`. Validation results (128x1
 Full analysis, training curves, confusion matrices, and visualizations are in
 `final_nb_deliverable3_ml.ipynb` and `outputs/`.
 
-An interactive Streamlit dashboard (`dashboard/app.py`) lets you upload an MRI slice and
-compare all four models' predictions side by side — see below.
+An interactive Streamlit dashboard (`dashboard/app.py`) lets you upload an MRI slice,
+compare all four models' predictions side by side, and view Grad-CAM heatmaps showing
+where the two convolutional models drew their evidence — see below.
 
 ## Setup
 
@@ -30,10 +31,21 @@ Requires Python 3.11 or 3.12 (`python3 --version`).
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt                    # dashboard only
+pip install -r requirements-notebook.txt           # add this to run the notebook
 ```
 
 Deactivate the environment later with `deactivate`.
+
+`requirements.txt` is deliberately limited to what the dashboard needs, because
+Streamlit Community Cloud installs that file on every deploy. Notebook-only packages
+(`kagglehub`, `seaborn`, `opencv-python`, `matplotlib`, `ipywidgets`) live in
+`requirements-notebook.txt`.
+
+The pins in `requirements.txt` matter. The exported `.keras` files record the
+serialization format of the Keras that wrote them (3.14.1), and `logistic_regression.joblib`
+records its scikit-learn version (1.9.0). Loading either with a different version fails.
+If you re-export the models from a newer environment, update the pins to match.
 
 ## Running the Dashboard
 
@@ -51,6 +63,87 @@ If you retrain or change the models, regenerate them by running
 **Section 18 — Export Models for Dashboard**, which writes
 `models/logistic_regression.joblib`, `models/scratch_cnn.keras`,
 `models/mobilenetv2.keras`, and `models/metadata.json`.
+
+`data/` is gitignored, so the sample-image dropdown falls back to the eight committed
+slices in `dashboard/samples/` (two per class) when the full test split is not present.
+That is what the deployed app uses.
+
+## Grad-CAM — where the models look
+
+The dashboard renders Grad-CAM heatmaps for **MobileNetV2**, the top-performing model.
+Grad-CAM weights the final convolutional feature map by the gradient of a class score
+with respect to that map, so warm regions mark the evidence the model actually used.
+Logistic regression is excluded because it has no feature maps at all.
+
+Implementation lives in `dashboard/gradcam.py`. Three details are worth knowing:
+
+MobileNetV2's final feature map is 4x4 at 128x128 input, so its heatmaps mark a broad
+region and cannot localize a tumor boundary. They show which part of the slice drove the
+decision, not where the tumor is.
+
+`gradcam_for` also supports the scratch CNNs — the Modified CNN yields a much sharper
+32x32 map — but they are not surfaced in the dashboard. See the finding below for why.
+
+Every heatmap is verified before it is displayed. Grad-CAM needs a re-wired copy of the
+model graph, and a rebuild that silently drops a layer still produces a plausible-looking
+heatmap for a model that was never evaluated. `compute_gradcam` therefore checks the
+rebuilt graph reproduces the original model's output and raises if it does not. This
+caught a real bug during development: the MobileNetV2 export applies `preprocess_input`
+as raw graph ops that Keras does not expose in `model.layers`, so rebuilding by replaying
+layers dropped the normalization entirely.
+
+You can also select a specific class to explain, which shows the evidence for that class
+even when the model predicted something else — useful for inspecting the recurring
+glioma/meningioma confusion.
+
+### Finding: the Modified CNN attends to non-anatomical features
+
+Grad-CAM on the Modified CNN placed its evidence largely on image borders, the skull
+margin, and background rather than on brain tissue. On a glioma slice with an obvious
+central lesion, its evidence sat at the bottom-right edge and it predicted meningioma. On
+a `notumor` sample carrying a source watermark, its evidence fell on the watermark itself.
+
+This is the signature of shortcut learning: the model may be separating classes partly by
+acquisition and source artifacts that correlate with class in this dataset, rather than by
+pathology. It qualifies the Modified CNN's 90.7% validation accuracy — that number is real
+on this data, but it does not establish that the model learned tumor morphology, and it
+would not be expected to transfer to images from a different source pipeline.
+
+MobileNetV2's attention, by contrast, concentrates on brain parenchyma. That is why it is
+the model surfaced in the dashboard. The Modified CNN remains in the quantitative
+comparison, where its accuracy is reported as measured.
+
+This was not investigated further because the dataset provides no acquisition metadata or
+patient IDs to test the hypothesis directly. A controlled check would be to retrain on
+center-cropped, border-stripped images and see whether the accuracy gap persists.
+
+## Deploying to Streamlit Community Cloud
+
+The app is deployable as-is: all four model files are committed and total ~27 MB, well
+under GitHub's 100 MB per-file limit, so no Git LFS is needed.
+
+1. Push `main` to GitHub.
+2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub.
+3. **Create app** → pick the `tumor-classification` repo, branch `main`, main file path
+   `dashboard/app.py`.
+4. Under **Advanced settings**, set Python version to **3.12** — TensorFlow 2.16 does not
+   support 3.13.
+5. Deploy. The first build takes several minutes, mostly installing TensorFlow.
+
+Notes:
+
+`tensorflow-cpu` is pinned rather than `tensorflow` because the default package bundles
+CUDA libraries that are useless on Streamlit's CPU runners and push the image past the
+resource limits.
+
+Community Cloud gives each app about 1 GB of RAM. TensorFlow plus all four models fits,
+but not with much headroom. `@st.cache_resource` keeps the models loaded once per process
+rather than reloading on every interaction. If the app restarts under memory pressure,
+the first thing to drop is the `Scratch CNN` from `load_models`, since the Modified CNN
+supersedes it.
+
+Model loading and inference are isolated per model, so if one artifact fails to load, the
+app reports it and continues with the rest instead of showing an error page.
 
 ## Contributing
 
