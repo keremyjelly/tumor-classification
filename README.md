@@ -117,34 +117,6 @@ This was not investigated further because the dataset provides no acquisition me
 patient IDs to test the hypothesis directly. A controlled check would be to retrain on
 center-cropped, border-stripped images and see whether the accuracy gap persists.
 
-## Deploying to Streamlit Community Cloud
-
-The app is deployable as-is: all four model files are committed and total ~27 MB, well
-under GitHub's 100 MB per-file limit, so no Git LFS is needed.
-
-1. Push `main` to GitHub.
-2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub.
-3. **Create app** → pick the `tumor-classification` repo, branch `main`, main file path
-   `dashboard/app.py`.
-4. Under **Advanced settings**, set Python version to **3.12** — TensorFlow 2.16 does not
-   support 3.13.
-5. Deploy. The first build takes several minutes, mostly installing TensorFlow.
-
-Notes:
-
-`tensorflow-cpu` is pinned rather than `tensorflow` because the default package bundles
-CUDA libraries that are useless on Streamlit's CPU runners and push the image past the
-resource limits.
-
-Community Cloud gives each app about 1 GB of RAM. TensorFlow plus all four models fits,
-but not with much headroom. `@st.cache_resource` keeps the models loaded once per process
-rather than reloading on every interaction. If the app restarts under memory pressure,
-the first thing to drop is the `Scratch CNN` from `load_models`, since the Modified CNN
-supersedes it.
-
-Model loading and inference are isolated per model, so if one artifact fails to load, the
-app reports it and continues with the rest instead of showing an error page.
-
 ## Contributing
 
 ```bash
