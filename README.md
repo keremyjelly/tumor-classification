@@ -4,6 +4,8 @@ Brain tumor MRI classification project comparing several models — Logistic Reg
 a scratch-built CNN, a modified CNN, and a MobileNetV2 transfer-learning model — on
 classifying MRI slices into **glioma**, **meningioma**, **pituitary**, or **no tumor**.
 
+**Live app:** [mle-tumor-classification.streamlit.app](https://mle-tumor-classification.streamlit.app)
+
 **Authors:** Jeremy Kelly, Marco Basile, Tyler Asmussen, Oden Ineza
 
 ## Project Status
@@ -20,9 +22,24 @@ All four models are trained and exported to `models/`. Validation results (128x1
 Full analysis, training curves, confusion matrices, and visualizations are in
 `final_nb_deliverable3_ml.ipynb` and `outputs/`.
 
-An interactive Streamlit dashboard (`dashboard/app.py`) lets you upload an MRI slice,
-compare all four models' predictions side by side, and view Grad-CAM heatmaps showing
-where the two convolutional models drew their evidence — see below.
+## Features
+
+- **Four-model comparison** — Logistic Regression, a scratch-built CNN, a modified CNN,
+  and MobileNetV2 (transfer learning), trained on the same 128x128 MRI slices and
+  benchmarked head-to-head (see Project Status above).
+- **Interactive Streamlit dashboard** (`dashboard/app.py`, live at
+  [mle-tumor-classification.streamlit.app](https://mle-tumor-classification.streamlit.app)) —
+  upload an MRI slice, or pick one of the built-in sample images, and see all four
+  models' predictions side by side.
+- **Grad-CAM explainability** — heatmaps showing where MobileNetV2 draws its evidence,
+  with a class selector to inspect evidence for any class, not just the predicted one.
+  See [Grad-CAM — where the models look](#grad-cam--where-the-models-look) below.
+- **Verified heatmaps** — Grad-CAM output is checked against the original model's
+  prediction before display, so a silently broken graph rebuild can't produce a
+  plausible-looking but wrong explanation.
+- **Sample images included** — eight committed slices (two per class) in
+  `dashboard/samples/` so the dashboard works even without the full dataset present,
+  which is what the deployed app uses.
 
 ## Setup
 
